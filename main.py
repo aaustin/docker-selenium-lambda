@@ -3,8 +3,11 @@ from tldextract import extract
 from urllib.parse import urlparse, urlunparse
 from langdetect import detect
 
+
 import undetected_chromedriver as uc
+#from selenium import webdriver
 from tempfile import mkdtemp
+import os
 
 def strip_subdomain(url):
     tsd, td, tsu = extract(url)
@@ -73,24 +76,32 @@ def handler(event=None, context=None):
     print(event)
 
     options = uc.ChromeOptions()
-    service = uc.ChromeService("/opt/chromedriver")
+    #service = webdriver.ChromeService("/opt/chromedriver")
 
-    options.binary_location = '/opt/chrome/chrome'
-    options.add_argument("--headless=new")
+    #options.binary_location = '/opt/chrome/chrome'
+    options.headless=True
+    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1280x1696")
     options.add_argument("--single-process")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-dev-tools")
-    options.add_argument("--no-zygote")
+    options.add_argument('--disable-dev-shm-usage')
     options.add_argument(f"--user-data-dir={mkdtemp()}")
     options.add_argument(f"--data-path={mkdtemp()}")
-    options.add_argument(f"--disk-cache-dir={mkdtemp()}")
-    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument(f"--disk-cache-dir={mkdtemp()}")    
+    options.add_argument(f"user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36")
+    #driver = webdriver.Chrome(options=options, service=service)
 
-    driver = uc.Chrome(options=options, service=service)
-    driver.get("branch.io")
+    driver_executable_path = '/tmp/chromedriver'
+    os.system(f'cp /opt/chromedriver {driver_executable_path}')
+    os.chmod(driver_executable_path, 0o777)
+
+    driver = uc.Chrome(
+        options=options,
+        browser_executable_path='/opt/chrome/chrome',
+        driver_executable_path=driver_executable_path,
+        version_main=114)
+
+    driver.get("https://branch.io")
 
     links = find_unique_urls(driver)
     print(links)
