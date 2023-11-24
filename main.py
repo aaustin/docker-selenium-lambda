@@ -1,11 +1,79 @@
-from selenium import webdriver
-from tempfile import mkdtemp
-from selenium.webdriver.common.by import By
+from bs4 import BeautifulSoup
+from tldextract import extract
+from urllib.parse import urlparse, urlunparse
+from langdetect import detect
 
+import undetected_chromedriver as uc
+from tempfile import mkdtemp
+
+def strip_subdomain(url):
+    tsd, td, tsu = extract(url)
+    return url.replace(tsd+'.', '')
+
+def remove_fragment(url):
+    parsed_url = urlparse(url)
+    # Reconstruct the URL without the fragment
+    return urlunparse(parsed_url._replace(fragment=''))
+
+def remove_query_parameters(url):
+    parsed_url = urlparse(url)
+    # Reconstruct the URL without query parameters
+    return urlunparse((parsed_url.scheme, parsed_url.netloc, parsed_url.path, '', '', ''))
+
+def remove_http_and_www_from_url(url):
+    parsed_url = urlparse(url)
+    hostname = parsed_url.netloc
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    return parsed_url._replace(netloc=hostname, scheme='').geturl().strip("/")
+
+def clean_url(url):
+    return remove_http_and_www_from_url(remove_fragment(remove_query_parameters(url)))
+
+
+def find_unique_urls(driver):
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+    links = {}
+    for link in soup.find_all('a'):
+        url = link.get('href')
+        label = link.get_text(strip=True)
+        
+        if url is None:
+            continue
+        if not url.startswith('http'):
+            continue
+    
+        url = clean_url(url)
+    
+        if url in links:
+            if label not in links[url]['label']:
+                links[url]['label'] += ", " + label
+        else:
+            links[url] = {'url': url, 'label': label}
+
+    return links
+
+def extract_text(driver):
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    body = soup.find('body')
+    if not body:
+        return []
+   
+    text_elements = []
+    for element in body.descendants:
+        if element.name in ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+            text = element.get_text().strip()
+            if text:
+                text_elements.append(element.name + ": " + text)
+                
+    return text_elements
 
 def handler(event=None, context=None):
-    options = webdriver.ChromeOptions()
-    service = webdriver.ChromeService("/opt/chromedriver")
+    print(event)
+
+    options = uc.ChromeOptions()
+    service = uc.ChromeService("/opt/chromedriver")
 
     options.binary_location = '/opt/chrome/chrome'
     options.add_argument("--headless=new")
@@ -21,7 +89,20 @@ def handler(event=None, context=None):
     options.add_argument(f"--disk-cache-dir={mkdtemp()}")
     options.add_argument("--remote-debugging-port=9222")
 
-    chrome = webdriver.Chrome(options=options, service=service)
-    chrome.get("https://example.com/")
+    driver = uc.Chrome(options=options, service=service)
+    driver.get("branch.io")
 
-    return chrome.find_element(by=By.XPATH, value="//html").text
+    links = find_unique_urls(driver)
+    print(links)
+    text = extract_text(driver)
+    print(text)
+    
+    driver.quit()
+
+    return {
+        "statusCode": 200,
+        "body": {
+            "links": links,
+            "text": text
+        }
+    }
