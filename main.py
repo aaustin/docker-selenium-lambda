@@ -7,7 +7,7 @@ from langdetect import detect
 import undetected_chromedriver as uc
 #from selenium import webdriver
 from tempfile import mkdtemp
-import os
+import os, time
 
 def strip_subdomain(url):
     tsd, td, tsu = extract(url)
@@ -75,6 +75,12 @@ def extract_text(driver):
 def handler(event=None, context=None):
     print(event)
 
+    urls = []
+    if 'urls' in event:
+        urls = event['urls']
+    elif 'url' in event:
+        urls = [event['url']]
+
     options = uc.ChromeOptions()
     #service = webdriver.ChromeService("/opt/chromedriver")
 
@@ -100,20 +106,23 @@ def handler(event=None, context=None):
         browser_executable_path='/opt/chrome/chrome',
         driver_executable_path=driver_executable_path,
         version_main=114)
-
-    driver.get("https://branch.io")
-
-    links = find_unique_urls(driver)
-    print(links)
-    text = extract_text(driver)
-    print(text)
     
+    results = {}
+    for url in urls:
+        driver.get(url)
+        time.sleep(3)
+        links = find_unique_urls(driver)
+        print(links)
+        texts = extract_text(driver)
+        print(texts)
+        results[url] = {
+            "links": links,
+            "texts": texts
+        }
+
     driver.quit()
 
     return {
         "statusCode": 200,
-        "body": {
-            "links": links,
-            "text": text
-        }
+        "body": results
     }
