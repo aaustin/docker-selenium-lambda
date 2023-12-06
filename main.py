@@ -9,6 +9,10 @@ import undetected_chromedriver as uc
 from tempfile import mkdtemp
 import os, time
 
+def get_domain_name(url):
+    tsd, td, tsu = extract(url)
+    return td + '.' + tsu if td else ''
+
 def strip_subdomain(url):
     tsd, td, tsu = extract(url)
     return url.replace(tsd+'.', '')
@@ -34,7 +38,7 @@ def clean_url(url):
     return remove_http_and_www_from_url(remove_fragment(remove_query_parameters(url)))
 
 
-def find_unique_urls(driver):
+def find_unique_urls(driver, domain_name):
     soup = BeautifulSoup(driver.page_source, 'html.parser')
 
     links = {}
@@ -44,6 +48,10 @@ def find_unique_urls(driver):
         
         if url is None:
             continue
+
+        if url.startswith('/'):
+            url = 'https://' + domain_name + url
+
         if not url.startswith('http'):
             continue
     
@@ -111,10 +119,11 @@ def handler(event=None, context=None):
     for url in urls:
         driver.get(url)
         time.sleep(3)
-        links = find_unique_urls(driver)
-        print(links)
+        domain_name = get_domain_name(url)
+        links = find_unique_urls(driver, domain_name)
+        #print(links)
         texts = extract_text(driver)
-        print(texts)
+        #print(texts)
         results[url] = {
             "links": links,
             "texts": texts
