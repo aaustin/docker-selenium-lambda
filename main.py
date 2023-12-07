@@ -10,12 +10,12 @@ from tempfile import mkdtemp
 import os, time
 
 def get_domain_name(url):
-    tsd, td, tsu = extract(url)
-    return td + '.' + tsu if td else ''
+    ext = extract(url)
+    return ext.domain + '.' + ext.suffix if ext.domain else ''
 
 def strip_subdomain(url):
-    tsd, td, tsu = extract(url)
-    return url.replace(tsd+'.', '')
+    ext = extract(url)
+    return url.replace(ext.subdomain+'.', '')
 
 def remove_fragment(url):
     parsed_url = urlparse(url)
