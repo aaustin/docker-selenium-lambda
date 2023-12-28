@@ -9,6 +9,13 @@ import undetected_chromedriver as uc
 from tempfile import mkdtemp
 import os, time
 
+def is_valid_url(url):
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except:
+        return False
+
 def get_domain_name(url):
     ext = extract(url)
     return ext.domain + '.' + ext.suffix if ext.domain else ''
@@ -117,6 +124,9 @@ def handler(event=None, context=None):
     
     results = {}
     for url in urls:
+        if not is_valid_url(url):
+            continue 
+        
         driver.get(url)
         time.sleep(3)
         domain_name = get_domain_name(url)
