@@ -2,19 +2,52 @@ from bs4 import BeautifulSoup
 from tldextract import extract
 from urllib.parse import urlparse, urlunparse
 from langdetect import detect
-
+import re
 
 import undetected_chromedriver as uc
 #from selenium import webdriver
 from tempfile import mkdtemp
 import os, time
 
+def clear_directory(directory):
+    if os.path.exists(directory):
+        # Recursively delete files and directories in the specified path
+        for root, dirs, files in os.walk(directory, topdown=False):
+            # Change the permissions and delete each file
+            for name in files:
+                filepath = os.path.join(root, name)
+                try:
+                    os.chmod(filepath, 0o777)  # Change the file permission
+                    os.remove(filepath)        # Remove the file
+                except Exception as e:
+                    print(f"Error removing file {filepath}: {e}")
+
+            # Change the permissions and delete each directory
+            for name in dirs:
+                dirpath = os.path.join(root, name)
+                try:
+                    os.chmod(dirpath, 0o777)  # Change the directory permission
+                    os.rmdir(dirpath)         # Remove the directory
+                except Exception as e:
+                    print(f"Error removing directory {dirpath}: {e}")
+
+        # Finally, remove the top directory
+        try:
+            os.rmdir(directory)
+        except Exception as e:
+            print(f"Error removing directory {directory}: {e}")
+
 def is_valid_url(url):
-    try:
-        result = urlparse(url)
-        return all([result.scheme, result.netloc])
-    except:
-        return False
+    regex = re.compile(
+        r'^(?:http|ftp)s?://' # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' # domain...
+        r'localhost|' # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|' # ...or ipv4
+        r'\[?[A-F0-9]*:[A-F0-9:]+\]?)' # ...or ipv6
+        r'(?::\d+)?' # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+    return re.match(regex, url) is not None
 
 def get_domain_name(url):
     ext = extract(url)
@@ -99,6 +132,10 @@ def handler(event=None, context=None):
     options = uc.ChromeOptions()
     #service = webdriver.ChromeService("/opt/chromedriver")
 
+    user_data_dir = mkdtemp()
+    data_path = mkdtemp()
+    disk_cache_dir = mkdtemp()
+
     #options.binary_location = '/opt/chrome/chrome'
     options.headless=True
     options.add_argument('--headless')
@@ -106,15 +143,16 @@ def handler(event=None, context=None):
     options.add_argument("--disable-gpu")
     options.add_argument("--single-process")
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument(f"--user-data-dir={mkdtemp()}")
-    options.add_argument(f"--data-path={mkdtemp()}")
-    options.add_argument(f"--disk-cache-dir={mkdtemp()}")    
+    options.add_argument(f"--user-data-dir={user_data_dir}")
+    options.add_argument(f"--data-path={data_path}")
+    options.add_argument(f"--disk-cache-dir={disk_cache_dir}")    
     options.add_argument(f"user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36")
     #driver = webdriver.Chrome(options=options, service=service)
 
     driver_executable_path = '/tmp/chromedriver'
-    os.system(f'cp /opt/chromedriver {driver_executable_path}')
-    os.chmod(driver_executable_path, 0o777)
+    if not os.path.exists(driver_executable_path):
+        os.system(f'cp /opt/chromedriver {driver_executable_path}')
+        os.chmod(driver_executable_path, 0o777)
 
     driver = uc.Chrome(
         options=options,
@@ -126,7 +164,7 @@ def handler(event=None, context=None):
     for url in urls:
         if not is_valid_url(url):
             continue 
-        
+
         driver.get(url)
         time.sleep(3)
         domain_name = get_domain_name(url)
@@ -140,6 +178,10 @@ def handler(event=None, context=None):
         }
 
     driver.quit()
+
+    #clear_directory(user_data_dir)
+    #clear_directory(data_path)
+    #clear_directory(disk_cache_dir)
 
     return {
         "statusCode": 200,
