@@ -9,6 +9,17 @@ import undetected_chromedriver as uc
 from tempfile import mkdtemp
 import os, time
 
+def get_size(start_path = '/tmp'):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # skip if it is symbolic link
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+
+    return total_size
+
 def clear_directory(directory):
     if os.path.exists(directory):
         # Recursively delete files and directories in the specified path
@@ -19,8 +30,10 @@ def clear_directory(directory):
                 try:
                     os.chmod(filepath, 0o777)  # Change the file permission
                     os.remove(filepath)        # Remove the file
+                    # print(f"Removed file {filepath}")
                 except Exception as e:
-                    print(f"Error removing file {filepath}: {e}")
+                    # print(f"Error removing file {filepath}: {e}")
+                    pass
 
             # Change the permissions and delete each directory
             for name in dirs:
@@ -28,14 +41,18 @@ def clear_directory(directory):
                 try:
                     os.chmod(dirpath, 0o777)  # Change the directory permission
                     os.rmdir(dirpath)         # Remove the directory
+                    # print(f"Removed direct {dirpath}")
                 except Exception as e:
-                    print(f"Error removing directory {dirpath}: {e}")
+                    # print(f"Error removing directory {dirpath}: {e}")
+                    pass
 
         # Finally, remove the top directory
         try:
             os.rmdir(directory)
+            # print(f"Removed direct {dirpath}")
         except Exception as e:
-            print(f"Error removing directory {directory}: {e}")
+            # print(f"Error removing directory {directory}: {e}")
+            pass
 
 def is_valid_url(url):
     regex = re.compile(
@@ -123,6 +140,10 @@ def extract_text(driver):
 def handler(event=None, context=None):
     print(event)
 
+    size = get_size()
+    size_mb = size / (1024 * 1024)
+    print(f"Size of /tmp: {size_mb} MB")
+
     urls = []
     if 'urls' in event:
         urls = event['urls']
@@ -179,9 +200,9 @@ def handler(event=None, context=None):
 
     driver.quit()
 
-    #clear_directory(user_data_dir)
-    #clear_directory(data_path)
-    #clear_directory(disk_cache_dir)
+    clear_directory(user_data_dir)
+    clear_directory(data_path)
+    clear_directory(disk_cache_dir)
 
     return {
         "statusCode": 200,
